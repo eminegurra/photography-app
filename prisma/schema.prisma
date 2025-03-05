@@ -7,9 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model user {
-  id       Int    @id @default(autoincrement())
-  name     String
-  email    String @unique(map: "User_email_key")
-  password String
+model Image {
+  id        String  @id @default(uuid()) 
+  url       String  @db.Text // Change from default String to Text to allow longer URLs
+  userId    String  
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+
+model User {
+  id        String  @id @default(uuid())
+  name      String
+  email     String  @unique
+  password  String
+  images    Image[] // One-to-many relation
 }
