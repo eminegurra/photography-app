@@ -6,19 +6,23 @@ const prisma = new PrismaClient();
 
 export async function POST(req) {
   try {
+    console.log("📢 Upload API Called"); // ✅ Debug log
+
     const { userId, imageUrl } = await req.json();
+    console.log("📝 Received Data:", { userId, imageUrl });
 
     if (!userId || !imageUrl) {
       return new Response(JSON.stringify({ message: "User ID and Image URL are required" }), { status: 400 });
     }
 
-    // ✅ Fetch user name from database
+    // ✅ Fetch user name
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true }, // Only get the name
+      select: { name: true },
     });
 
     if (!user) {
+      console.error("❌ User not found:", userId);
       return new Response(JSON.stringify({ message: "User not found" }), { status: 404 });
     }
 
@@ -38,8 +42,9 @@ export async function POST(req) {
 
     // Save file
     fs.writeFileSync(filePath, buffer);
+    console.log("✅ Image saved:", filePath);
 
-    // Save in DB
+    // ✅ Save image in database
     const savedImage = await prisma.image.create({
       data: {
         url: `/uploads/${fileName}`,
@@ -47,10 +52,26 @@ export async function POST(req) {
       },
     });
 
+    console.log("✅ Image uploaded successfully!", savedImage);
+
+    // ✅ Save notification in database (Unread by default)
+    const savedNotification = await prisma.notification.create({
+      data: {
+        message: `📢 New image uploaded by ${user.name}!`,
+        userId: userId, // ✅ Store directly
+        imageId: savedImage.id, // ✅ Store image ID
+        isRead: false, // ✅ Mark as unread
+      },
+    });
+    
+
+
+    console.log("✅ Notification saved successfully!", savedNotification);
+
     return new Response(JSON.stringify({ 
       message: "Image uploaded successfully!", 
       image: savedImage,
-      notification: `📢 New image uploaded by ${user.name}!` // ✅ Use user name instead of ID
+      notification: `📢 New image uploaded by ${user.name}!`
     }), { status: 201 });
 
   } catch (error) {
