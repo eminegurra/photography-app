@@ -14,15 +14,18 @@
     "autoprefixer": "^10.4.20",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "fs": "^0.0.1-security",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.479.0",
     "next": "15.2.1",
     "next-auth": "^4.24.11",
     "path": "^0.12.7",
     "postcss": "^8.5.3",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "swiper": "^11.2.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
