@@ -8,30 +8,48 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(uuid())
+  id            String         @id @default(uuid())
   name          String
-  email         String        @unique
+  email         String         @unique
   password      String
   images        Image[]
-  notifications Notification[] // ✅ Add relation field for notifications
+  notifications Notification[]
+
+  following Follow[] @relation("UserFollowing") // ✅ Users they follow
+  followers Follow[] @relation("UserFollowers") // ✅ Users who follow them
+}
+
+model Follow {
+  id          String @id @default(uuid())
+  followerId  String
+  followingId String
+
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id]) // ✅ Correct relation
+  following User @relation("UserFollowing", fields: [followingId], references: [id]) // ✅ Correct relation
+
+  createdAt DateTime @default(now())
+
+  @@unique([followerId, followingId]) // ✅ Ensure unique follow relationships
 }
 
 model Image {
-  id            String   @id @default(uuid())
-  url           String
-  user          User     @relation(fields: [userId], references: [id])
-  userId        String
-  createdAt     DateTime @default(now())
-  notifications Notification[] // ✅ Add relation field for notifications
+  id        String   @id @default(uuid())
+  url       String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+
+  notifications Notification[] // ✅ Link notifications to images
 }
 
 model Notification {
   id        String   @id @default(uuid())
   message   String
-  user      User?    @relation(fields: [userId], references: [id]) // ✅ Relate to User
-  userId    String?
-  image     Image?   @relation(fields: [imageId], references: [id]) // ✅ Relate to Image
-  imageId   String?
+  userId    String? // ✅ The user receiving the notification
+  imageId   String? // ✅ If related to an image
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id]) // ✅ Link to a user
+  image Image? @relation(fields: [imageId], references: [id]) // ✅ Link to an image
 }

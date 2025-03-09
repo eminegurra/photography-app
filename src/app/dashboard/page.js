@@ -11,7 +11,8 @@ export default function Dashboard() {
   const [images, setImages] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [notifications, setNotifications] = useState([]); // Store unread notifications
+  const [notifications, setNotifications] = useState([]); // ✅ Store notifications
+  const [unreadCount, setUnreadCount] = useState(0); // ✅ Fix: Add missing state
 
   // ✅ Fetch user images function
   const fetchUserImages = async (userId) => {
@@ -20,26 +21,51 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch images");
 
       const data = await res.json();
-      setImages(data.map(img => ({ ...img, url: img.url.startsWith("/") ? img.url : `/${img.url}` })));
+      setImages(
+        data.map((img) => ({
+          ...img,
+          url: img.url.startsWith("/") ? img.url : `/${img.url}`,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching images:", error);
     }
   };
 
-  const fetchNotifications = async (userId) => {
+  // ✅ Fetch notifications for logged-in user
+  const fetchNotifications = async () => {
+    if (!user) return;
+console.log('user.id', user.id)
     try {
-      console.log("🔍 Fetching notifications for user:", userId);
-
-      const res = await fetch(`/api/notifications/unread?userId=${userId}`);
+      const res = await fetch(`/api/notifications/all?userId=${user.id}`);
       if (!res.ok) throw new Error("Failed to fetch notifications");
 
       const data = await res.json();
-      console.log("✅ Notifications:", data);
       setNotifications(data);
     } catch (error) {
       console.error("❌ Error fetching notifications:", error);
     }
   };
+
+  // ✅ Fetch unread notifications count
+  const fetchUnreadNotifications = async () => {
+    if (!user) return;
+
+    try {
+      const res = await fetch(`/api/notifications/unread?userId=${user.id}`);
+      if (!res.ok) throw new Error("Failed to fetch unread notifications");
+
+      const data = await res.json();
+      setUnreadCount(data.length); // ✅ Fix: Correctly set unread count
+    } catch (error) {
+      console.error("❌ Error fetching unread notifications:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    fetchUnreadNotifications();
+  }, [user]); // ✅ Fetch when user logs in
 
   // ✅ Fetch user function
   const fetchUser = async () => {
@@ -63,7 +89,8 @@ export default function Dashboard() {
       setUser(userData);
 
       fetchUserImages(userData.id);
-      fetchNotifications(userData.id); // Fetch notifications when user logs in
+      fetchNotifications();
+      fetchUnreadNotifications(); // ✅ Fetch unread notifications after login
     } catch (error) {
       console.error("Error fetching user:", error);
       router.push("/login");
@@ -113,7 +140,8 @@ export default function Dashboard() {
         }
 
         fetchUserImages(user.id);
-        fetchNotifications(user.id); // Refresh notifications after upload
+        fetchNotifications(); // ✅ Refresh notifications after upload
+        fetchUnreadNotifications(); // ✅ Refresh unread notifications count
         setSelectedFile(null);
       } catch (error) {
         console.error("❌ Upload error:", error);
@@ -136,29 +164,24 @@ export default function Dashboard() {
       <div className="bg-blue-600 text-white py-4 px-6 flex justify-between items-center">
         <h1 className="text-2xl font-bold">Dashboard</h1>
 
-        {/* Notification Bell */}
+        {/* ✅ Notification Bell with unread count */}
         <Link href="/notifications" className="relative">
           <Bell className="h-7 w-7 text-white cursor-pointer" />
-          {notifications.length > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-              {notifications.length}
+              {unreadCount}
             </span>
           )}
         </Link>
 
-        <button
-          onClick={handleLogout}
-          className="bg-red-500 text-white px-4 py-2 rounded"
-        >
+        <button onClick={handleLogout} className="bg-red-500 text-white px-4 py-2 rounded">
           Logout
         </button>
       </div>
 
       {/* Page Content */}
       <div className="container mx-auto px-6 py-8">
-        <h2 className="text-3xl font-semibold text-gray-800 mb-6">
-          Welcome, {user?.name}!
-        </h2>
+        <h2 className="text-3xl font-semibold text-gray-800 mb-6">Welcome, {user?.name}!</h2>
 
         {/* Image Upload Section */}
         <div className="bg-white p-6 shadow-md rounded-md mb-6">
@@ -170,10 +193,7 @@ export default function Dashboard() {
             className="block w-full text-sm text-gray-600 border border-gray-300 rounded-md cursor-pointer bg-gray-50 p-2"
           />
           {selectedFile && (
-            <button
-              onClick={handleUploadClick}
-              className="w-full bg-blue-500 text-white p-2 rounded mt-2"
-            >
+            <button onClick={handleUploadClick} className="w-full bg-blue-500 text-white p-2 rounded mt-2">
               Upload Image
             </button>
           )}
