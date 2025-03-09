@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 export async function POST(req) {
   try {
-    console.log("📢 Upload API Called"); // ✅ Debug log
+    console.log("📢 Upload API Called");
 
     const { userId, imageUrl } = await req.json();
     console.log("📝 Received Data:", { userId, imageUrl });
@@ -15,7 +15,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ message: "User ID and Image URL are required" }), { status: 400 });
     }
 
-    // ✅ Fetch user name
+    // ✅ Fetch user
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { name: true },
@@ -26,22 +26,33 @@ export async function POST(req) {
       return new Response(JSON.stringify({ message: "User not found" }), { status: 404 });
     }
 
+    // ✅ Try fetching followers (Handle errors)
+    let followers = [];
+    try {
+      followers = await prisma.follow.findMany({
+        where: { followingId: userId },
+        select: { followerId: true },
+      });
+    } catch (error) {
+      console.error("❌ Error fetching followers:", error);
+      return new Response(JSON.stringify({ message: "Database error fetching followers" }), { status: 500 });
+    }
+
+    console.log("👥 Followers:", followers);
+
     // Convert Base64 to Buffer
     const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64Data, "base64");
 
-    // Generate unique file name
+    // Save image to server
     const fileName = `${Date.now()}-${userId}.jpg`;
     const filePath = path.join(process.cwd(), "public/uploads", fileName);
 
-    // Ensure uploads folder exists
-    const uploadsDir = path.join(process.cwd(), "public/uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    if (!fs.existsSync(path.dirname(filePath))) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
     }
-
-    // Save file
     fs.writeFileSync(filePath, buffer);
+
     console.log("✅ Image saved:", filePath);
 
     // ✅ Save image in database
@@ -54,28 +65,35 @@ export async function POST(req) {
 
     console.log("✅ Image uploaded successfully!", savedImage);
 
-    // ✅ Save notification in database (Unread by default)
-    const savedNotification = await prisma.notification.create({
-      data: {
-        message: `📢 New image uploaded by ${user.name}!`,
-        userId: userId, // ✅ Store directly
-        imageId: savedImage.id, // ✅ Store image ID
-        isRead: false, // ✅ Mark as unread
-      },
-    });
-    
+    // ✅ Create notifications for followers
+    if (followers.length > 0) {
+      await prisma.notification.createMany({
+        data: followers.map((follower) => ({
+          message: `📢 New image uploaded by ${user.name}!`,
+          userId: follower.followerId,
+          imageId: savedImage.id,
+          isRead: false,
+        })),
+      });
 
+      console.log("✅ Notifications sent to followers!");
+    } else {
+      console.log("ℹ No followers to notify.");
+    }
 
-    console.log("✅ Notification saved successfully!", savedNotification);
-
-    return new Response(JSON.stringify({ 
-      message: "Image uploaded successfully!", 
-      image: savedImage,
-      notification: `📢 New image uploaded by ${user.name}!`
-    }), { status: 201 });
-
+    return new Response(
+      JSON.stringify({
+        message: "Image uploaded successfully!",
+        image: savedImage,
+        notification: `📢 New image uploaded by ${user.name}!`,
+      }),
+      { status: 201 }
+    );
   } catch (error) {
     console.error("❌ Image Upload Error:", error);
-    return new Response(JSON.stringify({ message: "Error uploading image", error: error.message }), { status: 500 });
+    return new Response(
+      JSON.stringify({ message: "Error uploading image", error: error.message }),
+      { status: 500 }
+    );
   }
 }

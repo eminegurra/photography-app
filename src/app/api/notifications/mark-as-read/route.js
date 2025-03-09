@@ -18,6 +18,9 @@ export async function POST(req) {
     return new Response(JSON.stringify({ message: "Notification marked as read" }), { status: 200 });
   } catch (error) {
     console.error("❌ Error updating notification:", error);
-    return new Response(JSON.stringify({ message: "Error updating notification" }), { status: 500 });
+    return new Response(
+      JSON.stringify({ message: "Error updating notification", error: error.message }),
+      { status: 500 }
+    );
   }
 }

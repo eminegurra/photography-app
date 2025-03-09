@@ -10,12 +10,31 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
 
   // ✅ Fetch notifications
+  // ✅ Fetch notifications (Fixed)
   const fetchNotifications = async () => {
-    try {
-      const res = await fetch("/api/notifications/all");
-      if (!res.ok) throw new Error("Failed to fetch notifications");
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
 
-      const data = await res.json();
+    try {
+      const res = await fetch("/api/auth/user", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        router.push("/login");
+        return;
+      }
+
+      const userData = await res.json();
+      console.log("✅ Logged-in user:", userData);
+
+      const notificationsRes = await fetch(`/api/notifications/all?userId=${userData.id}`);
+      if (!notificationsRes.ok) throw new Error("Failed to fetch notifications");
+
+      const data = await notificationsRes.json();
       setNotifications(data);
     } catch (error) {
       console.error("❌ Error fetching notifications:", error);
@@ -23,6 +42,7 @@ export default function NotificationsPage() {
       setLoading(false);
     }
   };
+
 
   // ✅ Mark Notification as Read & Redirect to Image
   const markAsRead = async (notificationId, imageId) => {
@@ -33,19 +53,16 @@ export default function NotificationsPage() {
         body: JSON.stringify({ notificationId }),
       });
 
+      // ✅ Refetch notifications to update UI
+      fetchNotifications();
+
       // ✅ Redirect to the image page
       router.push(`/image/${imageId}`);
-
-      // ✅ Update UI - Mark as Read
-      setNotifications((prev) =>
-        prev.map((notif) =>
-          notif.id === notificationId ? { ...notif, isRead: true } : notif
-        )
-      );
     } catch (error) {
       console.error("❌ Error marking notification as read:", error);
     }
   };
+
 
   useEffect(() => {
     fetchNotifications();
