@@ -3,16 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell } from "lucide-react"; // ✅ Import Lucide-React Bell icon
+import { Bell } from "lucide-react";
+import Pusher from "pusher-js";
 
 export default function Dashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState([]); 
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [notifications, setNotifications] = useState([]); // ✅ Store notifications
-  const [unreadCount, setUnreadCount] = useState(0); // ✅ Fix: Add missing state
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // ✅ Fetch user images function
   const fetchUserImages = async (userId) => {
@@ -21,29 +22,12 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch images");
 
       const data = await res.json();
-      setImages(
-        data.map((img) => ({
-          ...img,
-          url: img.url.startsWith("/") ? img.url : `/${img.url}`,
-        }))
-      );
+      setImages(data.map((img) => ({
+        ...img,
+        url: img.url.startsWith("/") ? img.url : `/${img.url}`,
+      })));
     } catch (error) {
       console.error("Error fetching images:", error);
-    }
-  };
-
-  // ✅ Fetch notifications for logged-in user
-  const fetchNotifications = async () => {
-    if (!user) return;
-console.log('user.id', user.id)
-    try {
-      const res = await fetch(`/api/notifications/all?userId=${user.id}`);
-      if (!res.ok) throw new Error("Failed to fetch notifications");
-
-      const data = await res.json();
-      setNotifications(data);
-    } catch (error) {
-      console.error("❌ Error fetching notifications:", error);
     }
   };
 
@@ -56,16 +40,34 @@ console.log('user.id', user.id)
       if (!res.ok) throw new Error("Failed to fetch unread notifications");
 
       const data = await res.json();
-      setUnreadCount(data.length); // ✅ Fix: Correctly set unread count
+      setUnreadCount(data.length);
     } catch (error) {
       console.error("❌ Error fetching unread notifications:", error);
     }
   };
 
+  // ✅ Initialize Pusher for Real-time Notification Updates
   useEffect(() => {
-    fetchNotifications();
-    fetchUnreadNotifications();
-  }, [user]); // ✅ Fetch when user logs in
+    if (!user) return;
+
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    });
+
+    const channel = pusher.subscribe(`notifications-${user.id}`);
+
+    channel.bind("new-notification", async (data) => {
+      console.log("🔔 New Notification Received:", data);
+
+      setNotifications((prev) => [data, ...prev]);
+      setUnreadCount((prev) => prev + 1);
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+    };
+  }, [user]);
 
   // ✅ Fetch user function
   const fetchUser = async () => {
@@ -89,8 +91,7 @@ console.log('user.id', user.id)
       setUser(userData);
 
       fetchUserImages(userData.id);
-      fetchNotifications();
-      fetchUnreadNotifications(); // ✅ Fetch unread notifications after login
+      fetchUnreadNotifications();
     } catch (error) {
       console.error("Error fetching user:", error);
       router.push("/login");
@@ -113,7 +114,6 @@ console.log('user.id', user.id)
   const handleUploadClick = async () => {
     if (!selectedFile || !user || !user.id) {
       alert("❌ Please select an image and make sure you're logged in.");
-      console.error("❌ Upload failed - Missing user or file:", { user, selectedFile });
       return;
     }
 
@@ -121,8 +121,6 @@ console.log('user.id', user.id)
     const reader = new FileReader();
     reader.onloadend = async () => {
       const imageUrl = reader.result;
-
-      console.log("🔍 Sending Upload Request:", { userId: user.id, imageUrl });
 
       try {
         const res = await fetch("/api/images/upload", {
@@ -132,16 +130,12 @@ console.log('user.id', user.id)
         });
 
         const data = await res.json();
-        console.log("✅ Upload Response:", data);
-
         if (!res.ok) {
-          console.error("❌ Upload failed - Server Response:", data);
           throw new Error(data.message || "Upload failed");
         }
 
         fetchUserImages(user.id);
-        fetchNotifications(); // ✅ Refresh notifications after upload
-        fetchUnreadNotifications(); // ✅ Refresh unread notifications count
+        fetchUnreadNotifications();
         setSelectedFile(null);
       } catch (error) {
         console.error("❌ Upload error:", error);
@@ -153,6 +147,7 @@ console.log('user.id', user.id)
     reader.readAsDataURL(selectedFile);
   };
 
+  // ✅ Handle logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     router.push("/login");
