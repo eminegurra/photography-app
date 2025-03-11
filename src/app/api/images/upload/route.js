@@ -1,6 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import fs from "fs";
 import path from "path";
+import pusher from "../../../../lib/pusher"; 
+
+
+
 
 const prisma = new PrismaClient();
 
@@ -76,10 +80,28 @@ export async function POST(req) {
         })),
       });
 
-      console.log("✅ Notifications sent to followers!");
+      // ✅ Trigger Pusher Event for Real-time Notification
+      followers.forEach(async (follower) => {
+        const notificationData = {
+          message: `📢 New image uploaded by ${user.name}!`,
+          imageId: savedImage.id,
+          createdAt: new Date(),
+        };
+
+        try {
+          await pusher.trigger(`notifications-${follower.followerId}`, "new-notification", notificationData);
+          console.log(`✅ Pusher Notification Sent to ${follower.followerId}`);
+        } catch (error) {
+          console.error("❌ Pusher Error:", error);
+        }
+      });
+
+
+      console.log("✅ Notifications sent to followers via Pusher!");
     } else {
       console.log("ℹ No followers to notify.");
     }
+
 
     return new Response(
       JSON.stringify({
